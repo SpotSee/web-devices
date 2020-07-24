@@ -1,12 +1,120 @@
-<button id="connect">Connect to device</button>
-<p>Open the browser console to see received messages from the MCU!</p>
 
-<input type="text" id="sendBox" name="sendBox">
-<button id="send"> Send Text to device</button>
+<img src="spotsee.png" alt="Spotsee Logo" width="500" height="150">
+<div> </div>
+<link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Open+Sans" />
+
+<fieldset>
+<h1 style="inline-block;vertical-align: middle;
+  margin: 10px 0;font-family: Open Sans;"> WebUSB Demo </h1>
+<button id="connect" style="margin-left: 500px; width:150px; height: 100px;font-family: Open Sans;font-size:20px;float: right">Connect to device</button>
+<p style="font-size: 20px"> Input Device Command </p>
+<input type="text" id="sendBox1" name="sendBox1" style="font-family: Open Sans;font-size: 20px">
+
+<button id="send" style="font-family: Open Sans;font-size: 20px"> Send Command to device</button>
+<p id="alarmText" class="tab"> </p>
+
+<pre id="sendBox2" name="sendBox2" style="font-family: Open Sans;font-size: 20px"> </pre>
+<select id="selectMode" onchange ="modeSelect()" style="font-family: Open Sans;font-size: 20px">
+<option value=""> </option>
+<option  value="stream"> Stream </option>
+<option  value="echo"> Echo </option>
+<option  value="config."> Config </option>
+<option  value="exit"> Exit </option>
+</select>
+</fieldset>
+
+<div id="chartContainer" style="height: 300px; width: 100%;"></div>
+<div id="chartContainer1" style="height: 300px; width: 100%;"></div>
+
+<div id="configDisplay"> 
+
+<table id="table1" style="width:100%; font-family: Open Sans;font-size: 20px">
+<caption style="font-family: Open Sans; font-size: 20px"> Device Configuration </caption>
+<tr>
+<th>Low Temp Threshold</th>
+<th>High Temp Threshold</th>
+<th>Low Humidity Threshold</th>
+<th>High Humidity Threshold</th>
+<th>Sample Rate</th>
+</tr>
+</table>
+
+</div>
 
 <script type="text/javascript" src="serial.js"></script>
 <script type="text/javascript" src="str2ab.js"></script>
+<script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+
 <script>
+
+
+const mode = {
+	STREAM: 'stream',
+	EXIT: 'exit',
+	ECHO: 'echo',
+	CONFIG: 'config'
+
+}
+
+var dps = new Array();
+var dps1 = new Array();
+var chart = new CanvasJS.Chart("chartContainer", {
+	animationEnabled: true,
+	title :{
+		text: "Temperature"
+	},
+	axisY: {
+		includeZero: false
+	},      
+	data: [{
+		type: "line",
+		dataPoints: dps
+	}]
+});
+
+var chart1 = new CanvasJS.Chart("chartContainer1", {
+	animationEnabled: true,
+	title :{
+		text: "Humidity"
+	},
+	axisY: {
+		includeZero: false
+	},      
+	data: [{
+		type: "line",
+		dataPoints: dps1
+	}]
+});
+
+var xVal = 0;
+var yVal = 100; 
+var updateInterval = 1000;
+var dataLength = 20; // number of dataPoints visible at any point
+var counter = 0;
+
+var updateChart = function (data) {
+	console.log(data);
+	dps.push({
+		x: counter++,
+		y: parseFloat(data.temp)
+	});
+	dps1.push({
+		x: counter,
+		y: parseFloat(data.hum)
+	});
+
+	if (dps.length > dataLength) {
+		dps.shift();
+		dps1.shift();
+	}
+
+	chart.render();
+	chart1.render();
+};
+
+//updateChart(dataLength);
+//setInterval(function(){updateChart()}, updateInterval);
+
 serial.requestPort = function() {
   const filters = [
     { 'vendorId': 0x0483 },
@@ -18,17 +126,45 @@ serial.requestPort = function() {
 }
 
 var port
+
 let connectButton = document.querySelector('#connect')
 let sendButton = document.querySelector('#send')
 let textDecoder = new TextDecoder()
 
 sendButton.addEventListener('click',function () {
 	if(port) {
-		port.send(str2ab(document.getElementById("sendBox").value));
+		port.send(str2ab(document.getElementById("sendBox1").value));
 	}
 })
 
+function modeSelect()
+{
+	var e = document.getElementById("selectMode");
+	document.getElementById("sendBox2").innerHTML = (e.options[e.selectedIndex].value) + ' mode';
+	console.log(e.options[e.selectedIndex].value);
+	port.send(str2ab(e.options[e.selectedIndex].value));
+}
 
+function updateTable(data)
+{
+	data = JSON.parse(data);
+	var t = document.getElementById("table1")
+	var row = new Array()
+	row[0] = new Array(parseFloat(data.low_temp)/100,parseFloat(data.high_temp)/100,parseFloat(data.low_hum)/100,parseFloat(data.high_hum)/100,data.rate)
+	console.log(row);
+	
+	var tr = document.createElement('TR');
+	t.appendChild(tr)
+	for( i = 0; i < 5; i++)
+	{
+		var td = document.createElement('TD');
+		td.appendChild(document.createTextNode(row[0][i]));
+		tr.appendChild(td);
+	
+	}
+	
+}
+var configStr = "";
 connectButton.addEventListener('click', function() {
   if (port) { // If port is already connected, disconnect it
     connectButton.textContent = 'Connect'
@@ -42,10 +178,53 @@ connectButton.addEventListener('click', function() {
         console.log('Device is connected to Product ID: ' + port.device_.productId.toString(16) + ' and Vendor ID: ' + port.device_.vendorId.toString(16))
 
         connectButton.textContent = 'Disconnect'
-        port.onReceive = data => { console.log(textDecoder.decode(data))}
+        port.onReceive = data => {
+		console.log(textDecoder.decode(data).toString());
+		if (textDecoder.decode(data).toString().includes("low_temp"))
+		{
+			configStr= textDecoder.decode(data).toString(); 
+		}
+		else if (textDecoder.decode(data).toString().includes("temp"))
+		{
+		
+			updateChart(JSON.parse(textDecoder.decode(data)));
+			
+		}
+		else if (textDecoder.decode(data).toString().includes("status"))
+		{
+			console.log(textDecoder.decode(data));
+		}
+		else if(textDecoder.decode(data).toString().includes("rate"))
+		{
+			configStr += textDecoder.decode(data).toString();
+			console.log(configStr);
+			updateTable(configStr);
+			configStr = "";
+		}
+		}
         port.onReceiveError = error => { console.log('Receive error: ' + error)}
       }, error => { console.log('Connection error: ' + error) })
     }).catch(error => { console.log('Connection error: ' + error) })
   }
 })
+
+
 </script>
+
+<style>
+.tab{
+	margin: 20px
+	
+}
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 5px;
+}
+th {
+  text-align: left;
+}
+</style>
+
