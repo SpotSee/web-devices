@@ -11,7 +11,7 @@
 <input type="text" id="sendBox1" name="sendBox1" style="font-family: Open Sans;font-size: 20px">
 
 <button id="send" style="font-family: Open Sans;font-size: 20px"> Send Command to device</button>
-<p id="alarmText" class="tab"> </p>
+<p id="alarmText" class="tab" style="font-family: Open Sans;font-size: 30px; text-align:center; font-weight: bold"> </p>
 
 <pre id="sendBox2" name="sendBox2" style="font-family: Open Sans;font-size: 20px"> </pre>
 <select id="selectMode" onchange ="modeSelect()" style="font-family: Open Sans;font-size: 20px">
@@ -144,7 +144,40 @@ function modeSelect()
 	console.log(e.options[e.selectedIndex].value);
 	port.send(str2ab(e.options[e.selectedIndex].value));
 }
-
+function procAlarm(data)
+{
+	data = JSON.parse(data);
+	
+	var val = parseInt(data.alarm,16);
+	console.log(val);
+	var pre = document.getElementById("alarmText");
+	if(val & 32)
+	{
+		pre.style.color = "blue";
+		pre.innerHTML = "Low Temp Alarm";
+	}
+	else if( val & 64)
+	{
+		pre.style.color = "red";
+		pre.innerHTML = "High Temp Alarm";
+	}
+	else if(val & 8)
+	{
+		pre.style.color = "gray";
+		pre.innerHTML = "Low Humidity Alarm";
+	
+	}
+	else if(val & 16)
+	{
+		pre.style.color = "purple";
+		pre.innerHTML = "High Humidity Alarm";
+	
+	}
+	else if (val & 128)
+	{
+		pre.innerHTML = "";
+	}
+}
 function updateTable(data)
 {
 	data = JSON.parse(data);
@@ -188,6 +221,7 @@ connectButton.addEventListener('click', function() {
 		{
 		
 			updateChart(JSON.parse(textDecoder.decode(data)));
+			procAlarm(textDecoder.decode(data));
 			
 		}
 		else if (textDecoder.decode(data).toString().includes("status"))
@@ -213,7 +247,6 @@ connectButton.addEventListener('click', function() {
 
 <style>
 .tab{
-	margin: 20px
 	
 }
 table, th, td {
