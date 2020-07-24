@@ -1,0 +1,51 @@
+<button id="connect">Connect to device</button>
+<p>Open the browser console to see received messages from the MCU!</p>
+
+<input type="text" id="sendBox" name="sendBox">
+<button id="send"> Send Text to device</button>
+
+<script type="text/javascript" src="serial.js"></script>
+<script type="text/javascript" src="str2ab.js"></script>
+<script>
+serial.requestPort = function() {
+  const filters = [
+    { 'vendorId': 0x0483 },
+    { 'vendorId': 0x2341 }
+  ];
+  return navigator.usb.requestDevice({ 'filters': filters }).then(
+    device => new serial.Port(device)
+  );
+}
+
+var port
+let connectButton = document.querySelector('#connect')
+let sendButton = document.querySelector('#send')
+let textDecoder = new TextDecoder()
+
+sendButton.addEventListener('click',function () {
+	if(port) {
+		port.send(str2ab(document.getElementById("sendBox").value));
+	}
+})
+
+
+connectButton.addEventListener('click', function() {
+  if (port) { // If port is already connected, disconnect it
+    connectButton.textContent = 'Connect'
+    port.disconnect()
+    port = null
+    console.log('Device is disconnected.')
+  } else { // If there is no port, then connect to a new port
+    serial.requestPort().then(selectedPort => {
+      port = selectedPort
+      port.connect().then(() => {
+        console.log('Device is connected to Product ID: ' + port.device_.productId.toString(16) + ' and Vendor ID: ' + port.device_.vendorId.toString(16))
+
+        connectButton.textContent = 'Disconnect'
+        port.onReceive = data => { console.log(textDecoder.decode(data))}
+        port.onReceiveError = error => { console.log('Receive error: ' + error)}
+      }, error => { console.log('Connection error: ' + error) })
+    }).catch(error => { console.log('Connection error: ' + error) })
+  }
+})
+</script>
